@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Game Trắc Nghiệm - Thông tin và Dữ liệu</title>
+<style>
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: linear-gradient(to right, #74ebd5, #ACB6E5);
+    display: flex; flex-direction: column; align-items: center;
+    margin: 0; padding: 20px;
+  }
+  .game-title {
+    text-align: center; font-size: 28px; color: #fff; margin-bottom: 20px;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+  }
+  .quiz-container {
+    background: #fff; padding: 30px; border-radius: 15px;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+    width: min(92vw, 460px);
+    animation: fadeIn 0.8s ease-in;
+  }
+  h2 { margin: 0 0 10px; }
+  .option {
+    background: #f0f0f0; padding: 12px; margin: 10px 0; border-radius: 8px;
+    cursor: pointer; transition: all 0.25s ease;
+  }
+  .option:hover { background: #d0e6ff; transform: scale(1.01); }
+  .correct { background-color: #c8f7c5 !important; animation: correctAnim 0.4s ease; }
+  .wrong { background-color: #f7c5c5 !important; animation: wrongAnim 0.4s ease; }
+  #buttons {
+    display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap;
+  }
+  .btn {
+    padding: 10px 16px; color: #fff; border: none; border-radius: 8px;
+    cursor: pointer; transition: filter 0.2s ease;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  #next-btn { background-color: #4CAF50; display: none; }
+  #restart-btn { background-color: #2196F3; display: none; }
+  #score, #leaderboard { margin-top: 16px; }
+  .hidden { display: none; }
+  #leaderboard {
+    background: #f9f9f9; padding: 12px; border-radius: 10px;
+  }
+  #leaderboard-list { list-style: none; padding-left: 0; margin: 0; }
+  #leaderboard-list li { margin: 5px 0; font-weight: 600; }
+  #fireworks-canvas {
+    position: fixed; inset: 0; pointer-events: none; width: 100%; height: 100%;
+  }
+  @keyframes fadeIn {
+    from {opacity: 0; transform: translateY(16px);} to {opacity: 1; transform: translateY(0);}
+  }
+  @keyframes correctAnim { 0% {transform: scale(1);} 50% {transform: scale(1.04);} 100% {transform: scale(1);} }
+  @keyframes wrongAnim {
+    0% {transform: translateX(0);} 25% {transform: translateX(-4px);}
+    50% {transform: translateX(4px);} 75% {transform: translateX(-4px);} 100% {transform: translateX(0);}
+  }
+</style>
+</head>
+<body>
+  <h1 class="game-title">🧠 Game Trắc Nghiệm: Thông tin và Dữ liệu</h1>
+
+  <div class="quiz-container">
+    <h2 id="question">Câu hỏi sẽ hiển thị ở đây</h2>
+    <div id="options"></div>
+
+    <div id="buttons">
+      <button id="next-btn" class="btn">Câu tiếp theo</button>
+      <button id="restart-btn" class="btn">Chơi lại</button>
+    </div>
+
+    <div id="score" class="hidden">
+      Bạn đã trả lời đúng <span id="score-value"></span>/<span id="total-questions"></span> câu hỏi 🎉
+    </div>
+
+    <div id="leaderboard" class="hidden">
+      <h3 style="margin: 0 0 10px;">Bảng xếp hạng 🏆</h3>
+      <ul id="leaderboard-list"></ul>
+    </div>
+  </div>
+
+  <!-- Âm thanh (dùng try/catch khi phát để tránh chặn autoplay) -->
+  <audio id="sound-correct" src="https://www.soundjay.com/buttons/sounds/button-4.mp3" preload="auto"></audio>
+  <audio id="sound-wrong" src="https://www.soundjay.com/buttons/sounds/button-10.mp3" preload="auto"></audio>
+  <audio id="sound-fireworks" src="https://www.soundjay.com/misc/sounds/fireworks-1.mp3" preload="auto"></audio>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // Bộ câu hỏi
+  const questions = [
+    {question: "Thông tin là gì?", options: ["Các con số trong bảng điểm","Hiểu biết con người có được sau khi nhận dữ liệu","Kí hiệu, chữ viết, hình ảnh","Dữ liệu máy tính lưu trữ"], answer: 1},
+    {question: "Dữ liệu là gì?", options: ["Kết quả học tập","Lời nói của giáo viên","Dạng biểu diễn thông tin bằng kí hiệu","Ý kiến của học sinh"], answer: 2},
+    {question: "Thông tin và dữ liệu có quan hệ như thế nào?", options: ["Thông tin và dữ liệu là một","Thông tin tạo ra dữ liệu","Dữ liệu khi xử lí sẽ tạo ra thông tin","Không có quan hệ"], answer: 2},
+    {question: "Hãy chọn ví dụ là dữ liệu:", options: ["Lời nhận xét của cô giáo","Bức ảnh phong cảnh","Câu chúc mừng sinh nhật","Kiến thức HS rút ra sau khi học"], answer: 1},
+    {question: "Máy tính chủ yếu xử lí:", options: ["Thông tin","Kinh nghiệm","Dữ liệu","Hình ảnh"], answer: 2}
+  ];
+
+  // Biến trạng thái
+  let currentQuestion = 0;
+  let score = 0;
+
+  // Phần tử DOM
+  const questionEl = document.getElementById('question');
+  const optionsEl = document.getElementById('options');
+  const nextBtn = document.getElementById('next-btn');
+  const restartBtn = document.getElementById('restart-btn');
+  const scoreEl = document.getElementById('score');
+  const scoreValue = document.getElementById('score-value');
+  const totalQuestions = document.getElementById('total-questions');
+  const leaderboardEl = document.getElementById('leaderboard');
+  const leaderboardList = document.getElementById('leaderboard-list');
+
+  // Âm thanh
+  const soundCorrect = document.getElementById('sound-correct');
+  const soundWrong = document.getElementById('sound-wrong');
+  const soundFireworks = document.getElementById('sound-fireworks');
+
+  // Hiển thị câu hỏi
+  function showQuestion() {
+    const q = questions[currentQuestion];
+    questionEl.style.display = 'block';
+    optionsEl.style.display = 'block';
+    questionEl.textContent = `Câu ${currentQuestion + 1}: ${q.question}`;
+    optionsEl.innerHTML = '';
+
+    q.options.forEach((opt, index) => {
+      const div = document.createElement('div');
+      div.className = 'option';
+      div.textContent = opt;
+      div.onclick = () => checkAnswer(div, index);
+      optionsEl.appendChild(div);
+    });
+
+    nextBtn.style.display = 'none';
+  }
+
+  // Kiểm tra đáp án
+  function checkAnswer(el, chosenIndex) {
+    const correctIndex = questions[currentQuestion].answer;
+    const optionNodes = document.querySelectorAll('.option');
+    optionNodes.forEach(o => o.style.pointerEvents = 'none');
+
+    if (chosenIndex === correctIndex) {
+      el.classList.add('correct');
+      score++;
+      try { soundCorrect.currentTime = 0; soundCorrect.play(); } catch {}
+    } else {
+      el.classList.add('wrong');
+      optionNodes[correctIndex].classList.add('correct');
+      try { soundWrong.currentTime = 0; soundWrong.play(); } catch {}
+    }
+    nextBtn.style.display = 'inline-block';
+  }
+
+  // Nút tiếp theo
+  nextBtn.addEventListener('click', () => {
+    currentQuestion++;
+    if (currentQuestion < questions.length) {
+      showQuestion();
+    } else {
+      showScore();
+    }
+  });
+
+  // Hiển thị điểm và lưu bảng xếp hạng
+  function showScore() {
+    questionEl.style.display = 'none';
+    optionsEl.style.display = 'none';
+    nextBtn.style.display = 'none';
+    scoreEl.classList.remove('hidden');
+    scoreValue.textContent = score;
+    totalQuestions.textContent = questions.length;
+
+    const playerName = prompt('Nhập tên của bạn để lưu điểm:');
+    saveScore(playerName && playerName.trim() ? playerName.trim() : 'Người chơi', score);
+    renderLeaderboard();
+    restartBtn.style.display = 'inline-block';
+
+    if (score === questions.length) {
+      startFireworks();
+      try { soundFireworks.play(); } catch {}
+    }
+  }
+
+  // Lưu và render bảng xếp hạng (LocalStorage)
+  function saveScore(name, sc) {
+    const scores = JSON.parse(localStorage.getItem('leaderboard')) || [];
+    scores.push({ name, score: sc, time: Date.now() });
+    scores.sort((a, b) => b.score - a.score || a.time - b.time);
+    localStorage.setItem('leaderboard', JSON.stringify(scores.slice(0, 5)));
+  }
+
+  function renderLeaderboard() {
+    const scores = JSON.parse(localStorage.getItem('leaderboard')) || [];
+    leaderboardList.innerHTML = '';
+    scores.forEach((entry, idx) => {
+      const li = document.createElement('li');
+      li.textContent = `${idx + 1}. ${entry.name} - ${entry.score} điểm`;
+      leaderboardList.appendChild(li);
+    });
+    leaderboardEl.classList.remove('hidden');
+  }
+
+  // Nút chơi lại (giữ bảng xếp hạng)
+  restartBtn.addEventListener('click', () => {
+    currentQuestion = 0;
+    score = 0;
+    scoreEl.classList.add('hidden');
+    restartBtn.style.display = 'none';
+    // Giữ leaderboard hiển thị để người chơi mới thấy Top
+    showQuestion();
+  });
+
+  // Pháo hoa khi perfect
+  function startFireworks() {
+    const canvas = document.createElement('canvas');
+    canvas.id = 'fireworks-canvas';
+    document.body.appendChild(canvas);
+    const ctx = canvas.getContext('2d');
+
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    const particles = [];
+    const N = 140;
+    for (let i = 0; i < N; i++) {
+      particles.push({
+        x: canvas.width / 2,
+        y: canvas.height / 2,
+        angle: Math.random() * Math.PI * 2,
+        speed: Math.random() * 5 + 2,
+        radius: Math.random() * 3 + 1.5,
+        color: `hsl(${Math.random() * 360}, 100%, 55%)`,
+        life: Math.floor(Math.random() * 50) + 60
+      });
+    }
+
+    function animate() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      particles.forEach(p => {
+        p.x += Math.cos(p.angle) * p.speed;
+        p.y += Math.sin(p.angle) * p.speed;
+        p.life--;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.fill();
+      });
+
+      if (particles.some(p => p.life > 0)) {
+        requestAnimationFrame(animate);
+      } else {
+        window.removeEventListener('resize', resize);
+        document.body.removeChild(canvas);
+      }
+    }
+    animate();
+  }
+
+  // Khởi tạo
+  renderLeaderboard();  // Hiển thị bảng xếp hạng (nếu đã có từ trước)
+  showQuestion();       // Render câu hỏi đầu tiên
+});
+</script>
+</body>
+</html>
